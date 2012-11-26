@@ -164,7 +164,7 @@ public class UserProfileSensor implements Sensor
 			return;
 		}
 		
-		request.setUser(new UserProfile(loginId, userlogin.id.toString()));
+		request.setUser(new UserProfile(loginId, userlogin.profile.toString()));
 		UserCookieHandler.getInstance().setUser(request.getUser());
 		userlogin.password = "";
 		response.writeObjectWithHeaderAndFooter(userlogin);
@@ -185,7 +185,7 @@ public class UserProfileSensor implements Sensor
 		{
 			try
 			{
-				userlogin = UserLoginTableExt.selectById(user.id);
+				userlogin = UserLoginTableExt.selectById(user.loginid);
 			} 
 			catch (SQLException ex)
 			{
