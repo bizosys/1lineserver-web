@@ -1,0 +1,101 @@
+<?xml version="1.0"?>
+<project name="1Line Server Web" basedir=".">
+
+	<property name="currdir" value="${basedir}" />
+	<property file="${currdir}/build.properties" />
+
+	<tstamp>
+		<format property="build.time" pattern="dd MMM yyyy hh:mm aa"/>
+	</tstamp>
+	
+	<!-- the normal classpath -->
+	<path id="classpath">
+		<pathelement location="${build.classes}" />
+		<fileset dir="${lib.dir}">
+			<include name="*.jar" />
+		</fileset>
+	</path>
+
+	<!-- ====================================================== -->
+	<!-- Stuff needed by all targets                            -->
+	<!-- ====================================================== -->
+	<target name="init">
+		<mkdir dir="${build.dir}" />
+		<mkdir dir="${build.classes}" />
+	</target>
+
+	<!-- ====================================================== -->
+	<!-- Compile the Java files                                 -->
+	<!-- TODO:: Add depends="init,generator" once the code generation is fixed -->
+	<!-- ====================================================== -->
+	<target name="compile" depends="compile-core" />
+
+	<target name="compile-core" depends="init">
+	  	<echo message="Java home: ${java.home} - ${ant.java.version} : javac.version - ${javac.version}"/>
+		<javac encoding="${build.encoding}" 
+			destdir="${build.classes}" debug="${javac.debug}" optimize="${javac.optimize}" 
+			target="${javac.version}" source="${javac.version}" deprecation="${javac.deprecation}">
+			<classpath refid="classpath" />
+		    <src path="${src.dir}"/>
+		</javac>
+	</target>
+	<!-- ================================================================== -->
+	<!-- Make jar                                                     -->
+	<!-- ================================================================== -->
+	<!--                                                                    -->
+	<!-- ================================================================== -->
+	<target name="jar" depends="compile-core,jar-sources">
+		<copy todir="${build.classes}" verbose="true">
+			<fileset dir="${conf.dir}" includes="**/*.*" />
+		</copy>
+	
+		<jar jarfile="${name}.jar" basedir="${build.classes}">
+		<manifest>
+			<attribute name="Version" value="${version}"/>
+			<attribute name="Company" value="${company}"/>
+			<attribute name="BuildDate" value="${build.time}"/>
+		</manifest>	
+		</jar>
+		
+					
+
+		
+	</target>
+	
+	
+	<!-- ================================================================== -->
+	<!-- All source file jar -->
+	<!-- ================================================================== -->
+	<target name="jar-sources">
+		<jar jarfile="src-${name}.jar" basedir="${src.dir}">
+			<manifest>
+				<attribute name="Created-By" value="${company}(${build.time})"/>
+				<attribute name="Version" value="${version}"/>
+				<attribute name="BuildDate" value="${build.time}"/>
+			</manifest>			
+		</jar>
+	</target>		
+
+	<!-- ================================================================== -->
+	<!-- D I S T R I B U T I O N  Targets                                   -->
+	<!-- ================================================================== -->
+	<target name="cleanup + jar" depends="clean, jar">
+	</target>
+	
+	<target name="cleanup + jar + package" depends="clean, jar, package">
+	</target>
+	
+	<target name="package">
+		<zip destfile="${build.dir}/${name}.zip">
+			<zipfileset dir="${build.dir}" includes="*.jar" />
+			<zipfileset dir="${lib.dir}" includes="*.jar" />
+		</zip>
+	</target>
+	<!-- ================================================================== -->
+	<!-- Clean.  Delete the build files, and their directories              -->
+	<!-- ================================================================== -->
+	<target name="clean">
+		<delete dir="${build.dir}" />
+	</target>
+
+</project>

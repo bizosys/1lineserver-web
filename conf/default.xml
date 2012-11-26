@@ -1,0 +1,118 @@
+<?xml version="1.0"?>
+<configuration>
+	<property>
+	  <name>data.folder</name>
+	  <value>/mnt/local/1lineapp/</value>
+	  <description> The uplaod Area </description>
+	</property>
+	
+	<property>
+	  <name>default.role</name>
+	  <value>guest</value>
+	  <description>The default role for registration.
+	  </description>
+	</property>
+
+	<property>
+	  <name>privatekey</name>
+	  <value>DANCE</value>
+	  <description> 
+	  	The secret private key helps in creating the hash code.
+	  </description>
+	</property>
+	
+	<property>
+	  <name>subdomain</name>
+	  <value>localhost</value>
+	  <description> 
+	  	The cookie is set for this domain.
+	  </description>
+	</property>
+	
+	<property>
+	  <name>file.upload.dir</name>
+	  <value>${data.folder}/upload/</value>
+	  <description> The uplaod Area </description>
+	</property>
+	
+	<property>
+	  <name>db.conf</name>
+	  <value>jdbc.conf</value>
+	  <description>This is the configuration file from where JDBC is initialized.</description>
+	</property>
+
+	<property>
+	  <name>services.to.start</name>
+	  <value>sql,scheduler,async,queue</value>
+	  <description>
+	  	sql - Manages connection pool to the server.
+		scheduler - Provides application task scheduling
+		async - Asynchronous processing of task
+	  	queue - Process the task putting in a queue.
+	  </description>
+	</property>
+	
+	<property>
+	  <name>async.workers.init</name>
+	  <value>5</value>
+	  <description>
+	  	How many asynchronous threads will be created.
+	  </description>
+	</property>
+	
+	<property>
+	  <name>smtp.config</name>
+	  <value></value>
+	  <description>
+	  	This is send mail configuration.
+		smtpHostAddress|smtpPort|isSecure|mailUser|mailPasswd	
+	  	smtp.gmail.com|587|true|abhinashak@gmail.com|XXX
+	  	smtp.bizmail.yahoo.com|25|true|abinash@drapsa.com|XXX
+	  </description>
+	</property>
+
+	<property>
+	  <name>captchaurls</name>
+	  <value>user.register,user.changepassword,user.resetpassword</value>
+	  <description>
+		Comma separated list of [service.action]. Example, 
+			user.login,user.register,user.changepassword,user.resetpassword 
+	  </description>
+	</property>
+
+	<property>
+	  <name>login.email.verification</name>
+	  <value>false</value>
+	  <description>
+	  Make true is email verification is required else false.
+	  </description>
+	</property>
+
+	<property>
+	  <name>welcome.mail.url.prefix</name>
+	  <value><![CDATA[service.html?service=user&action=activate]]></value>
+	  <description>
+	  The prefix which gets attaches with loginid and auth token to form the __returnlink.
+	  </description>
+	</property>
+
+
+	<property>
+	  <name>welcome.mail.template</name>
+	  <value>welcomemail.txt</value>
+	  <description>
+	  If a mail template is provided, it will send a welcome mail.
+	  You can use __returnlink as variables.
+	  </description>
+	</property>
+	
+	<property>
+	  <name>passwordreset.mail.template</name>
+	  <value>passwordreset.txt</value>
+	  <description>
+	  If a mail template is provided, it will send a welcome mail.
+	  You can use __password as variables.
+	  </description>
+	</property>
+
+</configuration>

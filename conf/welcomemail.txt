@@ -1,0 +1,4 @@
+Welcome dear hero.
+Activate your account clicking following link
+<a href="http://www.bizosys.com/service.html?__returnlink">Click to validate</a>.
+If the above link is not visible, visit http://www.bizosys.com/service.html?__returnlink to activate.
