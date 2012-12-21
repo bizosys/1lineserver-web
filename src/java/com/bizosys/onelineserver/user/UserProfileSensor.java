@@ -6,9 +6,9 @@ import org.apache.log4j.Logger;
 
 import com.bizosys.onelineserver.sendmail.MailTask;
 import com.bizosys.onelineserver.sendmail.SmtpMsg;
-import com.bizosys.onelineserver.service.IConfiguration;
 import com.bizosys.onelineserver.service.QueueProcessingService;
 import com.bizosys.onelineserver.service.ServiceFactory;
+import com.oneline.util.Configuration;
 import com.oneline.util.FileReaderUtil;
 import com.oneline.util.Hash;
 import com.oneline.util.StringUtils;
@@ -322,7 +322,7 @@ public class UserProfileSensor implements Sensor
 	@Override
 	public void init() 
 	{
-    	IConfiguration conf = ServiceFactory.getInstance().getAppConfig();
+    	Configuration conf = ServiceFactory.getInstance().getAppConfig();
 		this.key = conf.get("passwordkey","Jac!@3n dancias@##@ng the fEER%r haha!!#");
 		this.isLoginVerification = conf.getBoolean("login.email.verification", false);
 		this.welcomeMailTemplateFile = conf.get("welcome.mail.template", "");

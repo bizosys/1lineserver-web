@@ -6,10 +6,10 @@ import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
 
 import com.bizosys.onelineserver.sendmail.MailSensor;
-import com.bizosys.onelineserver.service.IConfiguration;
 import com.bizosys.onelineserver.service.ServiceFactory;
 import com.bizosys.onelineserver.sql.SqlSensor;
 import com.bizosys.onelineserver.user.UserProfileSensor;
+import com.oneline.util.Configuration;
 import com.oneline.util.StringUtils;
 import com.oneline.web.sensor.Sensor;
 
@@ -40,7 +40,7 @@ public class OnelineServlet extends AbstractOnelineServlet {
 		Sensor mail = new MailSensor();
 		this.setupSensor(mail, mail.getName());
 		
-		IConfiguration conf = ServiceFactory.getInstance().getAppConfig();
+		Configuration conf = ServiceFactory.getInstance().getAppConfig();
 		String restServicesLine = conf.get("rest.services");
 		LOG.info("Rest Services : " + restServicesLine);
 		

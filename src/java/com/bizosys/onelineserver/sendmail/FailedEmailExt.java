@@ -2,9 +2,9 @@ package com.bizosys.onelineserver.sendmail;
 
 import org.apache.commons.lang.StringEscapeUtils;
 
-import com.bizosys.onelineserver.service.Configuration;
 import com.bizosys.onelineserver.service.ServiceFactory;
 import com.oneline.dao.WriteBase;
+import com.oneline.util.Configuration;
 import com.oneline.util.StringUtils;
 
 public class FailedEmailExt extends FailedEmail {

@@ -9,9 +9,9 @@ import javax.mail.MessagingException;
 import org.apache.log4j.Logger;
 
 import com.bizosys.onelineserver.sendmail.SMTPAgent.TransportSession;
-import com.bizosys.onelineserver.service.IConfiguration;
 import com.bizosys.onelineserver.service.ServiceFactory;
 import com.oneline.dao.WriteBase;
+import com.oneline.util.Configuration;
 import com.oneline.util.StringUtils;
 
 public class MailSender {
@@ -37,7 +37,7 @@ public class MailSender {
 	
 	private MailSender() {
 		
-    	IConfiguration conf = ServiceFactory.getInstance().getAppConfig();
+    	Configuration conf = ServiceFactory.getInstance().getAppConfig();
 		String smtpConfigLine = conf.get("smtp.config","");
 		if ( StringUtils.isEmpty(smtpConfigLine)) return;
 

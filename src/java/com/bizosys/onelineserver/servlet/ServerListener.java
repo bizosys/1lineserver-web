@@ -2,8 +2,8 @@ package com.bizosys.onelineserver.servlet;
 
 import org.apache.log4j.Logger;
 
-import com.bizosys.onelineserver.service.Configuration;
 import com.bizosys.onelineserver.service.ServiceFactory;
+import com.oneline.util.Configuration;
 
 public class ServerListener
 {
