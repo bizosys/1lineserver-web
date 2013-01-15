@@ -27,9 +27,10 @@ public class SqlSensor implements Sensor
 
 	private final static Logger LOG = Logger.getLogger(SqlSensor.class);
 	private static final boolean DEBUG_ENABLED = LOG.isDebugEnabled();
+	private final static java.util.logging.Logger javaLog = java.util.logging.Logger.getLogger("com.bizosys.onelineserver.sql.SqlSensor");
 
 	private Map<String, AppConfig> queryM;
-
+	
 	@Override
 	public void init() 
 	{
@@ -47,7 +48,13 @@ public class SqlSensor implements Sensor
 			{
 				this.selectQuery(request, response);
 			
-			} else if ("insert".equals(action)) {
+			}
+			else if ("multiselect".equals(action))
+			{
+				this.multiSelectQuery(request, response);
+			
+			}
+			else if ("insert".equals(action)) {
 				this.cudQuery(request, response, true);
 				
 			} else if ("delete".equals(action)) {
@@ -91,15 +98,20 @@ public class SqlSensor implements Sensor
 	@SuppressWarnings("unchecked")
 	private void selectQuery(Request request, Response response) throws SQLException
 	{
+		javaLog.warning("Proccessing select query request");
+		LOG.debug("Proccessing select query request");
 		String queryId = request.getString("queryid", true, false, false);
-		String docName = request.getString("docname", false, false, false);
+		LOG.debug("queryid:" + queryId);
+		String docName = request.getString("docname", false, false, true);
 		if ( StringUtils.isEmpty(docName)) docName = "document";
 		
-		String formatType = request.getString("format", false, false, false);
+		String formatType = request.getString("format", false, false, true);
 		if ( StringUtils.isEmpty(formatType)) formatType = "xml";
 		
+		LOG.debug("QueryId=" + queryId + ", No .Of queries:" + this.queryM.size());
 		
 		AppConfig queryObject = this.queryM.get(queryId);
+		
 		if (queryObject == null) {
 			refreshQueries();
 			queryObject = this.queryM.get(queryId);
@@ -117,7 +129,15 @@ public class SqlSensor implements Sensor
 		String replacedQuery = query.replace("__userid", " ? ");
 		int queryLenAfter = replacedQuery.length();
 		int totalReplacements =  (queryLenBefore - queryLenAfter)/ 5;
-
+		
+		// temporarily security has been disabled
+		/*if(totalReplacements == 0)
+		{
+			LOG.debug("SECURITY_COMPROMISED: Query Scope not limited to User");
+			response.error("SECURITY_COMPROMISED", "Query Scope not limited to User");
+			return;
+		}*/
+		
 		/**
 		 * If there is only one relacement, add this to beginning
 		 * Helps on making prepared statements
@@ -144,6 +164,7 @@ public class SqlSensor implements Sensor
 			//Multiple instanes of __userid. So just replace. No prepared statement.
 			query = query.replace("__userid", loginId);
 		}
+		
 		if ( DEBUG_ENABLED ) LOG.debug("Query:" + query);
 		
 		ReadBase<Object> reader = null;
@@ -154,12 +175,13 @@ public class SqlSensor implements Sensor
 			response.error("UNKNOWN_FORMAT", "Data format is not found. xml,json formats are supported.");
 			return;
 		}
-		
+			
 		response.writeHeader();
 		reader.execute(query, paramL);
 		response.writeFooter();
+		
 	}
-
+	
 	private ReadBase createXmlReader(Response response, String docName) {
 		ReadXml<Object> reader = new ReadXml<Object>(response.getWriter(), OBJECT_CLAZZ);
 		reader.docName = docName;
@@ -170,19 +192,23 @@ public class SqlSensor implements Sensor
 	{
 		if (this.queryM == null) this.queryM = new HashMap<String, AppConfig>();
 		else this.queryM.clear();
-
+		LOG.debug("Refreshing queries");
 		try 
 		{
+			javaLog.warning("Refreshing queries");
 			List<AppConfig> queryL = AppConfigTableExt.selectByConfigtype(QUERY_CONFIGTYPE);
 			for (AppConfig query : queryL)
 			{
 				this.queryM.put(query.title, query);
 			}
+			LOG.debug("Refreshing queries done");
+			javaLog.warning("Refreshing queries done");
 			return true;
 		} 
 		catch (SQLException e) 
 		{
 			LOG.error("Error in getting queries.", e);
+			javaLog.warning("Error in getting queries." + e.getMessage());
 			return false;
 		}
 	}
@@ -220,11 +246,23 @@ public class SqlSensor implements Sensor
 		int queryLenAfter = replacedQuery.length();
 		int totalReplacements =  (queryLenBefore - queryLenAfter)/ 5;
 		
-		if ( totalReplacements == 0 ) {
+/*		int queryLenBeforeRole = query.length(); 
+		String replacedQueryRole = query.replace("__role", " ? ");
+		int queryLenAfterRole = replacedQueryRole.length();
+		int totalReplacementsRole =  (queryLenBeforeRole - queryLenAfterRole)/ 3;*/
+		
+		/*if ( totalReplacements == 0 ) {
+			response.error("SECURITY_COMPROMISED", "Query Scope not limited to User");
+			return;
+		}*/
+		
+		
+		// temporarily security check has been disabled
+	  /* if ( totalReplacements == 0  || totalReplacementsRole == 0) {
 			response.error("SECURITY_COMPROMISED", "Query Scope not limited to User");
 			return;
 		}
-
+*/
 		/**
 		 * If there is only one relacement, add this to beginning
 		 * Helps on making prepared statements
@@ -256,12 +294,23 @@ public class SqlSensor implements Sensor
 		if ( DEBUG_ENABLED ) LOG.debug("Query:" + query);
 		
 		WriteBase writer = new WriteBase();
-		int records = writer.execute(query, paramL);
-		
-		response.writeHeader();
-		response.writeTextWithHeaderAndFooter("<records>" + records + "<records>");
-		response.writeFooter();
+		int recordId = writer.insert(query, paramL);;
+		response.writeTextWithHeaderAndFooter("<records>" + recordId + "</records>");
 	}	
+	
+	private void multiSelectQuery(Request request, Response response) throws SQLException
+	{
+		String mergedQuery = request.getString("QUERY_SEQUENCES",true,true,false);
+		List<String> sqlIds = StringUtils.fastSplit(mergedQuery, ',');
+		
+		List<String> sqls = new ArrayList<String>(sqlIds.size());
+		for (String sqlId : sqlIds) {
+			sqls.add(this.queryM.get(sqlId).body);
+		}
+		List<Object> paramL = request.getList("params", false);
+		MergedRow.prepareReport(response.getWriter(), sqls, paramL);
+	}
+	
 	
 	@Override
 	public String getName() {
