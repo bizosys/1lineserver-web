@@ -44,19 +44,19 @@ public class SqlSensor implements Sensor
 
 		try
 		{
-			if ("select".equals(action))
-			{
+			if ("select".equals(action))  {
 				this.selectQuery(request, response);
-			
 			}
-			else if ("multiselect".equals(action))
-			{
+
+			else if ("multiselect".equals(action)) {
 				this.multiSelectQuery(request, response);
 			
-			}
-			else if ("insert".equals(action)) {
+			} else if ("insert".equals(action)) {
 				this.cudQuery(request, response, true);
 				
+			} else if ("multiinsert".equals(action)) {
+				this.multiInsert(request, response, true);
+
 			} else if ("delete".equals(action)) {
 				this.cudQuery(request, response, true);
 
@@ -246,23 +246,6 @@ public class SqlSensor implements Sensor
 		int queryLenAfter = replacedQuery.length();
 		int totalReplacements =  (queryLenBefore - queryLenAfter)/ 5;
 		
-/*		int queryLenBeforeRole = query.length(); 
-		String replacedQueryRole = query.replace("__role", " ? ");
-		int queryLenAfterRole = replacedQueryRole.length();
-		int totalReplacementsRole =  (queryLenBeforeRole - queryLenAfterRole)/ 3;*/
-		
-		/*if ( totalReplacements == 0 ) {
-			response.error("SECURITY_COMPROMISED", "Query Scope not limited to User");
-			return;
-		}*/
-		
-		
-		// temporarily security check has been disabled
-	  /* if ( totalReplacements == 0  || totalReplacementsRole == 0) {
-			response.error("SECURITY_COMPROMISED", "Query Scope not limited to User");
-			return;
-		}
-*/
 		/**
 		 * If there is only one relacement, add this to beginning
 		 * Helps on making prepared statements
@@ -298,6 +281,7 @@ public class SqlSensor implements Sensor
 		response.writeTextWithHeaderAndFooter("<records>" + recordId + "</records>");
 	}	
 	
+	
 	private void multiSelectQuery(Request request, Response response) throws SQLException
 	{
 		String mergedQuery = request.getString("QUERY_SEQUENCES",true,true,false);
@@ -310,6 +294,96 @@ public class SqlSensor implements Sensor
 		List<Object> paramL = request.getList("params", false);
 		MergedRow.prepareReport(response.getWriter(), sqls, paramL);
 	}
+
+	private void multiInsert(Request request, Response response, boolean userIdAtFirst) throws SQLException
+	{
+		if ( null == request.getUser()) {
+			LOG.info("Guest is not authorized to perform this operation.");
+			response.error("NOT_AUTHORIZED", "Please Login.");
+			return;
+		}
+		
+		if ( request.getUser().isGuest()) {
+			LOG.info("Guest is not authorized to perform this operation.");
+			response.error("NOT_AUTHORIZED", "Please Login.");
+			return;
+		}
+		
+		String loginId = request.getUser().loginid;
+		String queryId = request.getString("queryid", true, false, false);
+		AppConfig queryObject = this.queryM.get(queryId);
+		if (queryObject == null) {
+			refreshQueries();
+			queryObject = this.queryM.get(queryId);
+		}
+		if (queryObject == null) {
+			response.error("QUERY_NOT_FOUND", "Invalid Configuration");
+			return;
+		}
+		
+		String query = queryObject.body;
+		String replacedQuery = query.replace("__userid", loginId);
+		
+		int rowCount = request.getInteger("rows", true);
+		System.out.println("Total Rows :" + rowCount);
+		int colCount = request.getInteger("cols", true);
+		System.out.println("Total cols :" + colCount);
+		
+		List<Object> paramL = new ArrayList<Object>(colCount);
+		StringBuilder insertedRecords = new StringBuilder();
+
+		WriteBase writer = new WriteBase();
+		
+		try {
+			System.out.println("Begin Transaction");
+			writer.beginTransaction();
+			
+			for(int rowIndex = 1; rowIndex <= rowCount; rowIndex++ ) {
+				System.out.println("rowIndex :" + rowIndex);
+				
+				for(int colIndex = 1; colIndex <= colCount; colIndex++ ) {
+					System.out.println("colIndex :" + colIndex);
+					String key = "c" + rowIndex + "-" + colIndex;
+					paramL.add( request.getString(key, true, true, true) );
+				}
+						
+				query = replacedQuery;
+				if ( DEBUG_ENABLED ) {
+					LOG.debug("Query:" + query);
+					LOG.debug("paramL:" + paramL.size()+ " , loginId=" + loginId);
+					String params = "Params \r\n";
+					for (Object param : paramL) {
+						params = params + ">>>" + param + "\r\n";
+					}
+					LOG.debug(params);
+				}
+					
+				int recordId = writer.insert(query, paramL);
+				System.out.println("Written : " + recordId);
+				paramL.clear();
+				
+				if ( insertedRecords.length() > 0 ) insertedRecords.append(',');
+				insertedRecords.append(recordId);
+			}
+			writer.commitTransaction();
+			writer = null;
+						
+		} catch (Exception ex) {
+			ex.printStackTrace(System.out);
+			throw new SQLException(ex);
+		} finally {
+			if ( null != writer) {
+				System.out.println("Rolling back Transactions: ");
+				try { 
+					writer.rollbackTransaction(); 
+				} catch(Exception ex) {
+					LOG.fatal(ex);
+				}
+			}
+		}
+		
+		response.writeTextWithHeaderAndFooter("<records>" + insertedRecords.toString() + "</records>");
+	}	
 	
 	
 	@Override
