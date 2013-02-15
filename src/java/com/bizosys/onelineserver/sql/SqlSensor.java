@@ -27,7 +27,6 @@ public class SqlSensor implements Sensor
 
 	private final static Logger LOG = Logger.getLogger(SqlSensor.class);
 	private static final boolean DEBUG_ENABLED = LOG.isDebugEnabled();
-	private final static java.util.logging.Logger javaLog = java.util.logging.Logger.getLogger("com.bizosys.onelineserver.sql.SqlSensor");
 
 	private Map<String, AppConfig> queryM;
 	
@@ -48,20 +47,23 @@ public class SqlSensor implements Sensor
 				this.selectQuery(request, response);
 			}
 
-			else if ("multiselect".equals(action)) {
+			else if ("multi.select".equals(action)) {
 				this.multiSelectQuery(request, response);
 			
 			} else if ("insert".equals(action)) {
-				this.cudQuery(request, response, true);
+				this.insert(request, response);
 				
-			} else if ("multiinsert".equals(action)) {
-				this.multiInsert(request, response, true);
+			} else if ("multi.insert".equals(action)) {
+				this.multiInsert(request, response);
 
-			} else if ("delete".equals(action)) {
-				this.cudQuery(request, response, true);
+			} else if ("chained.cud".equals(action)) {
+				this.chainedCUDStatements(request, response);
 
 			} else if ("update".equals(action)) {
-				this.cudQuery(request, response, false);
+				this.deleteAndUpdate(request, response);
+
+			} else if ("delete".equals(action)) {
+				this.deleteAndUpdate(request, response);
 
 			} else if ("refresh".equals(action)) {
 				if (this.refreshQueries()) {
@@ -98,17 +100,18 @@ public class SqlSensor implements Sensor
 	@SuppressWarnings("unchecked")
 	private void selectQuery(Request request, Response response) throws SQLException
 	{
-		javaLog.warning("Proccessing select query request");
-		LOG.debug("Proccessing select query request");
+		if ( DEBUG_ENABLED ) LOG.debug("Proccessing select query request");
+		
 		String queryId = request.getString("queryid", true, false, false);
-		LOG.debug("queryid:" + queryId);
+		if ( DEBUG_ENABLED ) LOG.debug("queryid:" + queryId);
+		
 		String docName = request.getString("docname", false, false, true);
 		if ( StringUtils.isEmpty(docName)) docName = "document";
 		
 		String formatType = request.getString("format", false, false, true);
 		if ( StringUtils.isEmpty(formatType)) formatType = "xml";
 		
-		LOG.debug("QueryId=" + queryId + ", No .Of queries:" + this.queryM.size());
+		if ( DEBUG_ENABLED ) LOG.debug("QueryId=" + queryId + ", No .Of queries:" + this.queryM.size());
 		
 		AppConfig queryObject = this.queryM.get(queryId);
 		
@@ -125,45 +128,12 @@ public class SqlSensor implements Sensor
 		
 		String loginId = ( null == request.getUser()) ? "GUEST" : request.getUser().loginid;
 		String query = queryObject.body;
-		int queryLenBefore = query.length(); 
-		String replacedQuery = query.replace("__userid", " ? ");
-		int queryLenAfter = replacedQuery.length();
-		int totalReplacements =  (queryLenBefore - queryLenAfter)/ 5;
-		
-		// temporarily security has been disabled
-		/*if(totalReplacements == 0)
-		{
-			LOG.debug("SECURITY_COMPROMISED: Query Scope not limited to User");
-			response.error("SECURITY_COMPROMISED", "Query Scope not limited to User");
-			return;
-		}*/
-		
-		/**
-		 * If there is only one relacement, add this to beginning
-		 * Helps on making prepared statements
-		 * We can not pass it inside parameters due to security risk.
-		 */
 		List<Object> paramL = request.getList("params", false);
-		if ( totalReplacements == 1 ) {
-			if ( Collections.EMPTY_LIST == paramL || null == paramL) {  
-				paramL = new ArrayList<Object>(1);
-			} 
-			
-			paramL.add(0, loginId);
-			query = replacedQuery;
 
-			if ( DEBUG_ENABLED ) {
-				LOG.debug("paramL:" + paramL.size() + " , loginId=" + loginId);
-				String params = "Params \r\n";
-				for (Object param : paramL) {
-					params = params + ">>>" + param + "\r\n";
-				}
-				LOG.debug(params);
-			}
-		} else {
-			//Multiple instanes of __userid. So just replace. No prepared statement.
-			query = query.replace("__userid", loginId);
-		}
+
+		
+		//Multiple instanes of __userid. So just replace. No prepared statement.
+		query = query.replace("__userid", loginId);
 		
 		if ( DEBUG_ENABLED ) LOG.debug("Query:" + query);
 		
@@ -195,92 +165,20 @@ public class SqlSensor implements Sensor
 		LOG.debug("Refreshing queries");
 		try 
 		{
-			javaLog.warning("Refreshing queries");
 			List<AppConfig> queryL = AppConfigTableExt.selectByConfigtype(QUERY_CONFIGTYPE);
 			for (AppConfig query : queryL)
 			{
 				this.queryM.put(query.title, query);
 			}
 			LOG.debug("Refreshing queries done");
-			javaLog.warning("Refreshing queries done");
 			return true;
 		} 
 		catch (SQLException e) 
 		{
 			LOG.error("Error in getting queries.", e);
-			javaLog.warning("Error in getting queries." + e.getMessage());
 			return false;
 		}
 	}
-	
-	@SuppressWarnings("unchecked")
-	private void cudQuery(Request request, Response response, boolean userIdAtFirst) throws SQLException
-	{
-		if ( null == request.getUser()) {
-			LOG.info("Guest is not authorized to perform this operation.");
-			response.error("NOT_AUTHORIZED", "Please Login.");
-			return;
-		}
-		
-		if ( request.getUser().isGuest()) {
-			LOG.info("Guest is not authorized to perform this operation.");
-			response.error("NOT_AUTHORIZED", "Please Login.");
-			return;
-		}
-		
-		String loginId = request.getUser().loginid;
-		String queryId = request.getString("queryid", true, false, false);
-		AppConfig queryObject = this.queryM.get(queryId);
-		if (queryObject == null) {
-			refreshQueries();
-			queryObject = this.queryM.get(queryId);
-		}
-		if (queryObject == null) {
-			response.error("QUERY_NOT_FOUND", "Invalid Configuration");
-			return;
-		}
-		
-		String query = queryObject.body;
-		int queryLenBefore = query.length(); 
-		String replacedQuery = query.replace("__userid", " ? ");
-		int queryLenAfter = replacedQuery.length();
-		int totalReplacements =  (queryLenBefore - queryLenAfter)/ 5;
-		
-		/**
-		 * If there is only one relacement, add this to beginning
-		 * Helps on making prepared statements
-		 * We can not pass it inside parameters due to security risk.
-		 */
-		List<Object> paramL = request.getList("params", false);
-		if ( totalReplacements == 1 ) {
-			if ( Collections.EMPTY_LIST == paramL || null == paramL) {  
-				paramL = new ArrayList<Object>(1);
-			} 
-			
-			if ( userIdAtFirst) paramL.add(0, loginId);
-			else paramL.add(loginId);
-			
-			query = replacedQuery;
-
-			if ( DEBUG_ENABLED ) {
-				LOG.debug("paramL:" + paramL.size() + " , loginId=" + loginId);
-				String params = "Params \r\n";
-				for (Object param : paramL) {
-					params = params + ">>>" + param + "\r\n";
-				}
-				LOG.debug(params);
-			}
-		} else {
-			//Multiple instanes of __userid. So just replace. No prepared statement.
-			query = query.replace("__userid", loginId);
-		}
-		if ( DEBUG_ENABLED ) LOG.debug("Query:" + query);
-		
-		WriteBase writer = new WriteBase();
-		int recordId = writer.insert(query, paramL);;
-		response.writeTextWithHeaderAndFooter("<records>" + recordId + "</records>");
-	}	
-	
 	
 	private void multiSelectQuery(Request request, Response response) throws SQLException
 	{
@@ -291,25 +189,18 @@ public class SqlSensor implements Sensor
 		for (String sqlId : sqlIds) {
 			sqls.add(this.queryM.get(sqlId).body);
 		}
+		@SuppressWarnings("unchecked")
 		List<Object> paramL = request.getList("params", false);
 		MergedRow.prepareReport(response.getWriter(), sqls, paramL);
 	}
 
-	private void multiInsert(Request request, Response response, boolean userIdAtFirst) throws SQLException
+	
+	@SuppressWarnings("unchecked")
+	private void insert(Request request, Response response) throws SQLException
 	{
-		if ( null == request.getUser()) {
-			LOG.info("Guest is not authorized to perform this operation.");
-			response.error("NOT_AUTHORIZED", "Please Login.");
-			return;
-		}
+		String loginId = isLoggedIn(request, response);
+		if ( null == loginId) return;
 		
-		if ( request.getUser().isGuest()) {
-			LOG.info("Guest is not authorized to perform this operation.");
-			response.error("NOT_AUTHORIZED", "Please Login.");
-			return;
-		}
-		
-		String loginId = request.getUser().loginid;
 		String queryId = request.getString("queryid", true, false, false);
 		AppConfig queryObject = this.queryM.get(queryId);
 		if (queryObject == null) {
@@ -322,53 +213,109 @@ public class SqlSensor implements Sensor
 		}
 		
 		String query = queryObject.body;
-		String replacedQuery = query.replace("__userid", loginId);
+		List<Object> paramL = request.getList("params", false);
+		if ( Collections.EMPTY_LIST == paramL || null == paramL) {  
+			paramL = new ArrayList<Object>(1);
+		}
 		
+		makeQuerySecure(response, query, loginId, paramL, false);
+		if ( DEBUG_ENABLED ) LOG.debug("Secured Query:" + query);
+		
+		WriteBase writer = new WriteBase();
+		int recordId = writer.insert(query, paramL);
+		
+		response.writeTextWithHeaderAndFooter("<records>" + recordId + "</records>");
+	}
+	
+	@SuppressWarnings("unchecked")
+	private void deleteAndUpdate(Request request, Response response) throws SQLException
+	{
+		String loginId = isLoggedIn(request, response);
+		if ( null == loginId) return;
+		
+		String queryId = request.getString("queryid", true, false, false);
+		AppConfig queryObject = this.queryM.get(queryId);
+		if (queryObject == null) {
+			refreshQueries();
+			queryObject = this.queryM.get(queryId);
+		}
+		if (queryObject == null) {
+			response.error("QUERY_NOT_FOUND", "Invalid Configuration");
+			return;
+		}
+		
+		String query = queryObject.body;
+		List<Object> paramL = request.getList("params", false);
+		if ( Collections.EMPTY_LIST == paramL || null == paramL) {  
+			paramL = new ArrayList<Object>(1);
+		}
+		
+		makeQuerySecure(response, query, loginId, paramL, false);
+		if ( DEBUG_ENABLED ) LOG.debug("Secured Query:" + query);
+		
+		WriteBase writer = new WriteBase();
+		int recordsTouched = writer.execute(query, paramL);
+		
+		response.writeTextWithHeaderAndFooter("<records>" + recordsTouched + "</records>");
+	}	
+
+
+	private void multiInsert(Request request, Response response) throws SQLException
+	{
+		String loginId = isLoggedIn(request, response);
+		if ( null == loginId) return;
+
+		String queryId = request.getString("queryid", true, false, false);
+		AppConfig queryObject = this.queryM.get(queryId);
+		if (queryObject == null) {
+			refreshQueries();
+			queryObject = this.queryM.get(queryId);
+		}
+		if (queryObject == null) {
+			response.error("QUERY_NOT_FOUND", "Invalid Configuration");
+			return;
+		}
+		
+		String query = queryObject.body;
 		int rowCount = request.getInteger("rows", true);
-		System.out.println("Total Rows :" + rowCount);
 		int colCount = request.getInteger("cols", true);
-		System.out.println("Total cols :" + colCount);
+		query = query.replace("__userid", loginId);
 		
 		List<Object> paramL = new ArrayList<Object>(colCount);
+		
 		StringBuilder insertedRecords = new StringBuilder();
 
 		WriteBase writer = new WriteBase();
 		
+		StringBuilder localLog = new StringBuilder(4096);
 		try {
-			System.out.println("Begin Transaction");
+			localLog.append ("Query : " + query);
 			writer.beginTransaction();
 			
 			for(int rowIndex = 1; rowIndex <= rowCount; rowIndex++ ) {
-				System.out.println("rowIndex :" + rowIndex);
-				
+				String key = "c" + rowIndex + "-" ;
 				for(int colIndex = 1; colIndex <= colCount; colIndex++ ) {
-					System.out.println("colIndex :" + colIndex);
-					String key = "c" + rowIndex + "-" + colIndex;
-					paramL.add( request.getString(key, true, true, true) );
-				}
-						
-				query = replacedQuery;
-				if ( DEBUG_ENABLED ) {
-					LOG.debug("Query:" + query);
-					LOG.debug("paramL:" + paramL.size()+ " , loginId=" + loginId);
-					String params = "Params \r\n";
-					for (Object param : paramL) {
-						params = params + ">>>" + param + "\r\n";
-					}
-					LOG.debug(params);
-				}
 					
+					localLog.append('\n').append(key).append(colIndex).append('=');
+
+					String val = request.getString(key + colIndex, true, true, true);
+					paramL.add( val );
+
+					localLog.append(val);
+					
+				}
 				int recordId = writer.insert(query, paramL);
-				System.out.println("Written : " + recordId);
+				localLog.append("Record Insered");
 				paramL.clear();
-				
 				if ( insertedRecords.length() > 0 ) insertedRecords.append(',');
 				insertedRecords.append(recordId);
 			}
 			writer.commitTransaction();
+			localLog.append("Transaction Commited");
 			writer = null;
 						
 		} catch (Exception ex) {
+			LOG.fatal(localLog, ex);
 			ex.printStackTrace(System.out);
 			throw new SQLException(ex);
 		} finally {
@@ -385,6 +332,144 @@ public class SqlSensor implements Sensor
 		response.writeTextWithHeaderAndFooter("<records>" + insertedRecords.toString() + "</records>");
 	}	
 	
+	
+	private void chainedCUDStatements(Request request, Response response) throws SQLException
+	{
+		String loginId = isLoggedIn(request, response);
+		if ( null == loginId) return;
+
+		int totalQueries = request.getInteger("queries", true);
+		
+		List<String> queries = new ArrayList<String>();
+		List<String> crudL = new ArrayList<String>();
+		List<List<Object>> queryParams = new ArrayList<List<Object>>();
+		
+		StringBuilder insertedRecords = new StringBuilder();
+		StringBuilder localLog = new StringBuilder();
+		
+		WriteBase writer = null;
+		try {
+			for ( int i=1; i <= totalQueries; i++) {
+				String queryId = request.getString(i + "queryid" , true, false, false);
+				int paramsT = request.getInteger(i + "paramsT" , true);
+				String crud = request.getString(i + "sql" , true, true, false);
+				
+				AppConfig queryObject = this.queryM.get(queryId);
+				if (queryObject == null) {
+					refreshQueries();
+					queryObject = this.queryM.get(queryId);
+				}
+
+				if (queryObject == null) {
+					response.error("QUERY_NOT_FOUND", "Invalid Configuration");
+					return;
+				}
+				
+				List<Object> paramsL = new ArrayList<Object>(paramsT);
+				for ( int p=1; p <= paramsT; p++) {
+					String aParam = request.getString(i + "params" + p, false, false, true);
+					paramsL.add(aParam);
+				}
+				
+				String query = makeQuerySecure(response, queryObject.body, loginId, paramsL, false);
+				
+				queries.add(query);
+				queryParams.add(paramsL);
+				crudL.add(crud);
+			}
+			
+			writer = new WriteBase();
+			writer.beginTransaction();
+			for (int querySeq=0; querySeq<totalQueries; querySeq++) {
+				String query = queries.get(querySeq);
+				String crud = crudL.get(querySeq);
+				localLog.append ("Query : " + query);
+				int recordId = 0; 
+				if ( crud.equals("insert")) recordId = writer.insert(query, queryParams.get(querySeq));
+				else recordId = writer.execute(query, queryParams.get(querySeq));
+				
+				if ( insertedRecords.length() > 0 ) insertedRecords.append(',');
+				insertedRecords.append(recordId);				
+				localLog.append("Record Insered");
+			}
+			writer.commitTransaction();
+			localLog.append("Transaction Commited");
+			writer = null;
+
+		} catch (Exception ex) {
+			LOG.fatal(localLog, ex);
+			ex.printStackTrace(System.out);
+			throw new SQLException(ex);
+		} finally {
+			if ( null != writer) {
+				LOG.debug("Rolling back Transactions: ");
+				try { 
+					writer.rollbackTransaction(); 
+				} catch(Exception ex) {
+					LOG.fatal(ex);
+				}
+			}
+		}
+		
+		response.writeTextWithHeaderAndFooter("<records>" + insertedRecords.toString() + "</records>");
+	}		
+	
+	private String isLoggedIn(Request request, Response response) {
+		if ( null == request.getUser()) {
+			LOG.info("Guest is not authorized to perform this operation.");
+			response.error("NOT_AUTHORIZED", "Please Login.");
+			return null;
+		}
+		
+		if ( request.getUser().isGuest()) {
+			LOG.info("Guest is not authorized to perform this operation.");
+			response.error("NOT_AUTHORIZED", "Please Login.");
+			return null;
+		}
+		
+		String loginId = request.getUser().loginid;
+		return loginId;
+	}	
+	
+	private String makeQuerySecure(Response response, String  query, String loginId, List<Object> paramL, boolean allowUserScope) throws SQLException {
+		
+		int queryLenBefore = query.length(); 
+		String replacedQuery = query.replace("__userid", " ? ");
+		int queryLenAfter = replacedQuery.length();
+		int totalReplacements =  (queryLenBefore - queryLenAfter)/ 5;
+		
+		if(totalReplacements == 0 && allowUserScope)
+		{
+			LOG.debug("SECURITY_COMPROMISED: Query Scope not limited to User");
+			response.error("SECURITY_COMPROMISED", "Query Scope not limited to User");
+			throw new SQLException(query);
+		}
+		
+		/**
+		 * If there is only one relacement, add this to beginning
+		 * Helps on making prepared statements
+		 * We can not pass it inside parameters due to security risk.
+		 */
+		if ( totalReplacements == 1 ) {
+			paramL.add(0, loginId);
+			query = replacedQuery;
+		} else {
+			query = query.replace("__userid", loginId);
+		}
+		
+		if ( DEBUG_ENABLED ) {
+			LOG.debug("paramL:" + paramL.size() + " , loginId=" + loginId);
+			String params = "Params \r\n";
+			for (Object param : paramL) {
+				params = params + ">>>" + param + "\r\n";
+			}
+			LOG.debug(params);
+		}
+			
+		return query;
+	}
+	
+		
 	
 	@Override
 	public String getName() {
